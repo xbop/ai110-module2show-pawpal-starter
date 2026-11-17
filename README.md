@@ -137,6 +137,37 @@ Conflict detection example (manually overlapping times)
 Warning: Schedule conflict: Mochi: Morning walk overlaps Luna: Playtime.
 ```
 
+## Testing PawPal+
+
+Run the test suite from the project directory:
+
+```bash
+python -m pytest
+```
+
+The tests cover task completion and addition, multi-pet scheduling, sorting,
+filtering, recurrence, conflict warnings, input validation, and Streamlit
+interactions. A successful run produced:
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.2.0, pluggy-1.7.0
+rootdir: /Users/imanimusembi/ai110-module2show-pawpal-starter
+plugins: anyio-4.16.0
+collected 48 items
+
+test_app.py ......                                                       [ 12%]
+test_pawpal.py ..............                                            [ 41%]
+test_pawpal_system.py .......................                            [ 89%]
+tests/test_pawpal.py .....                                               [100%]
+
+============================== 48 passed in 1.13s ==============================
+```
+
+**Confidence level: ★★★★☆ (4/5).** The tests exercise core behaviors and
+important edge cases, but cannot prove the system is free of bugs. Session
+data is not persistent, and fixed-time care is not automatically scheduled.
+
 ## What you will build
 
 Your final app should:
