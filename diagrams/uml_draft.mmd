@@ -1,0 +1,25 @@
+classDiagram
+    class Owner {
+        +str name
+        +int available_minutes
+        +str preferred_category
+    }
+    class Pet {
+        +str name
+        +str species
+        +Owner owner
+    }
+    class CareTask {
+        +str title
+        +str category
+        +int duration_minutes
+        +str priority
+    }
+    class DailyPlanner {
+        +Pet pet
+        +list~CareTask~ tasks
+        +build_plan(start_time) list~tuple~
+    }
+    Pet "0..*" --> "1" Owner : has owner
+    DailyPlanner --> "1" Pet : plans for
+    DailyPlanner --> "0..*" CareTask : schedules
