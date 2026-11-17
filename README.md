@@ -20,10 +20,10 @@ while an `Owner` holds multiple pets and gathers their tasks through
 `get_all_tasks()`. The `Scheduler` uses that combined list to plan incomplete
 tasks within the owner's available time and explain its choices.
 
-The terminal demo exercises this backend. The Streamlit app currently uses a
-separate single-pet planner; it is not yet connected to the multi-pet backend.
+The terminal demo and Streamlit app both use this backend. In the app, add
+pets, select a pet to add or edit its tasks, and generate a shared daily plan.
 
-## Class design
+## Initial class design
 
 ```mermaid
 classDiagram
@@ -53,10 +53,9 @@ classDiagram
     DailyPlanner --> "0..*" CareTask : schedules
 ```
 
-Each pet has one owner; an owner can be associated with multiple pets. A daily
-planner handles one pet and uses that pet's owner's constraints, so the owner
-cannot disagree with the pet's owner. The current interface plans for one pet
-at a time; it does not manage a persistent list of pets.
+This initial draft describes the earlier single-pet planner in `pawpal.py`;
+the current multi-pet backend reverses the owner-pet relationship and is
+described below.
 
 ## Planning rules
 
@@ -74,27 +73,58 @@ with `pytest`.
 
 ## Multi-pet backend
 
-`pawpal_system.py` contains a separate multi-pet implementation: an `Owner`
+`pawpal_system.py` contains the multi-pet implementation: an `Owner`
 holds pets, each `Pet` holds tasks, and `Owner.get_all_tasks()` returns
 `(pet, task)` pairs for the `Scheduler`. The scheduler considers incomplete
 tasks across all pets, using the same priority, preference, time-budget, and
 midnight rules described above. It returns each pet and task with suggested
 start/end times and a reason; tasks that do not fit have `None` for both times.
 
-Task time is a duration in minutes. Frequency is a descriptive label, not an
-automatic recurrence rule: completion remains set until explicitly changed
-with `mark_complete()` or `mark_incomplete()`. Suggested times are not fixed
-appointments; follow veterinary instructions for time-sensitive care.
+The Streamlit app stores the owner and its pets and tasks in session state.
+Tasks can be marked complete when edited; completed tasks are excluded from
+plans. The due date is visible and editable for each task.
 
-The current Streamlit app still uses the separate single-pet `pawpal.py`
-implementation shown in the draft diagram above. The new multi-pet backend is
-not yet connected to the UI.
+## Smarter Scheduling
+
+- **Sorting — `Scheduler.sort_by_time()`:** Returns all `(pet, task)` pairs,
+  including completed tasks, from shortest to longest duration. This does not
+  change the priority-first ordering used by `Scheduler.build_plan()`.
+- **Filtering — `Scheduler.filter_tasks()`:** Filters pet-task pairs by
+  completion status, pet name, or both. Names are trimmed and matched exactly
+  without regard to case; duplicate names match all corresponding pets.
+- **Conflict detection — `Scheduler.detect_conflicts()`:** Returns warnings
+  for overlapping intervals across the same or different pets, and for
+  invalid or incomparable intervals. Adjacent intervals are not conflicts and
+  unscheduled entries are ignored. Generated plans are consecutive, so the
+  method is also useful for checking supplied intervals.
+- **Recurring tasks — `Task.mark_complete()` and `Task.mark_incomplete()`:**
+  Completing a daily or weekly task creates an incomplete occurrence due one
+  or seven days after completion. Frequency matching is case-insensitive; other
+  labels do not recur automatically. Reopening removes the next occurrence
+  only if it is unchanged and incomplete. `Scheduler.build_plan()` excludes
+  future occurrences until they are due.
+
+Task time is a duration in minutes; tasks do not have fixed start times.
+Suggested times are not medication instructions or fixed appointments; follow
+veterinary advice for time-sensitive care.
 
 Run `python main.py` for a terminal demonstration of the multi-pet scheduler.
 
 ## Sample Output
 
 ```text
+Tasks sorted by duration (including completed tasks)
+5 min | Luna: Grooming
+10 min | Mochi: Breakfast
+15 min | Luna: Playtime
+25 min | Mochi: Morning walk
+
+Incomplete tasks for Luna
+Luna: Playtime
+
+Completed tasks
+Luna: Grooming
+
 Today's Schedule
 09:00-09:25 | Mochi: Morning walk (25 min)
   High priority; matches your preferred category; fits in the remaining 60 minutes.
@@ -102,6 +132,9 @@ Today's Schedule
   High priority; fits in the remaining 35 minutes.
 09:35-09:50 | Luna: Playtime (15 min)
   Medium priority; fits in the remaining 25 minutes.
+
+Conflict detection example (manually overlapping times)
+Warning: Schedule conflict: Mochi: Morning walk overlaps Luna: Playtime.
 ```
 
 ## What you will build

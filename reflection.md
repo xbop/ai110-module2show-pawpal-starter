@@ -50,11 +50,10 @@ future work rather than adding complexity to the draft.
 Later, the core implementation in `pawpal_system.py` changed to `Task`, `Pet`,
 `Owner`, and `Scheduler` to support multiple pets. An owner now holds pets,
 each pet holds its tasks, and the scheduler retrieves all pet-task pairs through
-`Owner.get_all_tasks()`. Tasks also have a completion status and a descriptive
-frequency. Frequency does not yet trigger automatic recurrence; completion
-must be reset explicitly. The existing Streamlit app still uses the earlier
-single-pet implementation, so connecting it to the new backend remains work
-for a later step.
+`Owner.get_all_tasks()`. Tasks have a completion status and frequency. Daily
+and weekly tasks now create a new occurrence when completed, due one or seven
+days after completion. The Streamlit app uses the multi-pet backend: users add
+pets and their tasks, then generate a shared schedule.
 
 ---
 
@@ -69,6 +68,12 @@ for a later step.
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+
+The scheduler greedily chooses tasks in priority order rather than searching
+every possible combination. A long high-priority task can use time that might
+otherwise fit several shorter tasks, so the plan may not maximize the number
+of tasks completed. This is reasonable for a busy owner because it keeps the
+plan simple and predictable while giving important care priority.
 
 ---
 
@@ -91,8 +96,8 @@ addition helped turn the design into concrete behavior.
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
 
-I chose duration in minutes as the meaning of task time and a descriptive
-frequency label instead of automatic recurrence. I also directed the design
+I chose duration in minutes as the meaning of task time and initially chose a
+descriptive frequency label instead of automatic recurrence. I also directed the design
 toward multiple pets: the scheduler now gathers tasks through
 `Owner.get_all_tasks()` rather than planning for just one pet.
 
@@ -100,8 +105,8 @@ We ran the terminal example and checked that it showed three tasks for two
 pets. We also ran pytest tests for multi-pet scheduling, task completion, and
 task addition. When the full suite exposed a test-module name collision, the
 AI added `tests/__init__.py`; rerunning the suite collected and passed all 33
-tests. The multi-pet backend is still separate from the Streamlit interface,
-so those results do not verify a multi-pet UI.
+tests. Those results preceded the multi-pet UI integration; the updated UI
+tests also exercise adding pets, editing tasks, and scheduling across pets.
 
 ---
 
