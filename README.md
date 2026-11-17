@@ -1,4 +1,4 @@
-# PawPal+ (Module 2 Project)
+f# PawPal+ (Module 2 Project)
 
 You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
 
@@ -11,6 +11,98 @@ A busy pet owner needs help staying consistent with pet care. They want an assis
 - Produce a daily plan and explain why it chose that plan
 
 Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
+
+## Implementation summary
+
+The multi-pet backend models each care activity as a `Task` with a duration,
+frequency label, priority, and completion status. Each `Pet` holds its tasks,
+while an `Owner` holds multiple pets and gathers their tasks through
+`get_all_tasks()`. The `Scheduler` uses that combined list to plan incomplete
+tasks within the owner's available time and explain its choices.
+
+The terminal demo exercises this backend. The Streamlit app currently uses a
+separate single-pet planner; it is not yet connected to the multi-pet backend.
+
+## Class design
+
+```mermaid
+classDiagram
+    class Owner {
+        +str name
+        +int available_minutes
+        +str preferred_category
+    }
+    class Pet {
+        +str name
+        +str species
+        +Owner owner
+    }
+    class CareTask {
+        +str title
+        +str category
+        +int duration_minutes
+        +str priority
+    }
+    class DailyPlanner {
+        +Pet pet
+        +list~CareTask~ tasks
+        +build_plan(start_time) list~tuple~
+    }
+    Pet "0..*" --> "1" Owner : has owner
+    DailyPlanner --> "1" Pet : plans for
+    DailyPlanner --> "0..*" CareTask : schedules
+```
+
+Each pet has one owner; an owner can be associated with multiple pets. A daily
+planner handles one pet and uses that pet's owner's constraints, so the owner
+cannot disagree with the pet's owner. The current interface plans for one pet
+at a time; it does not manage a persistent list of pets.
+
+## Planning rules
+
+Tasks are sorted by priority (high, medium, low), then by the owner's preferred
+category within the same priority, preserving entry order for ties. The planner
+greedily schedules tasks that fit within the available minutes and by
+midnight, skipping tasks that do not fit and continuing to consider the rest.
+Scheduled tasks are placed consecutively from the chosen start time; these
+times are suggestions, not medication instructions or fixed appointments.
+The app shows its reasoning and lists unscheduled tasks. Tasks and inputs live
+in the Streamlit session and are not saved after that session ends.
+
+Use Python 3.10 or later. Run the app with `streamlit run app.py` and the tests
+with `pytest`.
+
+## Multi-pet backend
+
+`pawpal_system.py` contains a separate multi-pet implementation: an `Owner`
+holds pets, each `Pet` holds tasks, and `Owner.get_all_tasks()` returns
+`(pet, task)` pairs for the `Scheduler`. The scheduler considers incomplete
+tasks across all pets, using the same priority, preference, time-budget, and
+midnight rules described above. It returns each pet and task with suggested
+start/end times and a reason; tasks that do not fit have `None` for both times.
+
+Task time is a duration in minutes. Frequency is a descriptive label, not an
+automatic recurrence rule: completion remains set until explicitly changed
+with `mark_complete()` or `mark_incomplete()`. Suggested times are not fixed
+appointments; follow veterinary instructions for time-sensitive care.
+
+The current Streamlit app still uses the separate single-pet `pawpal.py`
+implementation shown in the draft diagram above. The new multi-pet backend is
+not yet connected to the UI.
+
+Run `python main.py` for a terminal demonstration of the multi-pet scheduler.
+
+## Sample Output
+
+```text
+Today's Schedule
+09:00-09:25 | Mochi: Morning walk (25 min)
+  High priority; matches your preferred category; fits in the remaining 60 minutes.
+09:25-09:35 | Mochi: Breakfast (10 min)
+  High priority; fits in the remaining 35 minutes.
+09:35-09:50 | Luna: Playtime (15 min)
+  Medium priority; fits in the remaining 25 minutes.
+```
 
 ## What you will build
 
