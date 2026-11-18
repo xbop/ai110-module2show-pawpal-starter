@@ -168,6 +168,48 @@ else:
     st.info("Add a pet before adding tasks.")
 
 st.divider()
+st.subheader("Task overview")
+scheduler = Scheduler(owner)
+if owner.get_all_tasks():
+    filter_columns = st.columns(2)
+    pet_names = list(dict.fromkeys(pet.name for pet in owner.pets))
+    with filter_columns[0]:
+        pet_filter_index = st.selectbox(
+            "Filter by pet name",
+            range(len(pet_names) + 1),
+            format_func=lambda index: "All pets" if index == 0 else pet_names[index - 1],
+        )
+    with filter_columns[1]:
+        status_filter = st.selectbox(
+            "Filter by completion", ["All", "Incomplete", "Completed"]
+        )
+    pet_name_filter = None if pet_filter_index == 0 else pet_names[pet_filter_index - 1]
+    status = {"All": None, "Incomplete": False, "Completed": True}[status_filter]
+    matches = scheduler.filter_tasks(completed=status, pet_name=pet_name_filter)
+    matching_tasks = {id(task) for _, task in matches}
+    sorted_matches = [
+        (pet, task) for pet, task in scheduler.sort_by_time()
+        if id(task) in matching_tasks
+    ]
+    st.caption("Sorted by duration, shortest first. Filters do not change the daily plan.")
+    if sorted_matches:
+        st.table([
+            {
+                "Pet": pet.name,
+                "Task": task.description,
+                "Minutes": task.duration_minutes,
+                "Due date": task.due_date,
+                "Priority": task.priority.capitalize(),
+                "Status": "Completed" if task.completed else "Incomplete",
+            }
+            for pet, task in sorted_matches
+        ])
+    else:
+        st.info("No tasks match these filters.")
+else:
+    st.info("Add tasks to see the sorted overview.")
+
+st.divider()
 st.subheader("Daily plan")
 st.caption(
     "Suggested times are not medication instructions or fixed appointments. "
@@ -185,14 +227,19 @@ if st.button("Generate schedule", type="primary"):
         if not owner.get_all_tasks():
             st.warning("Add at least one task before generating a schedule.")
         else:
-            scheduler = Scheduler(owner)
             plan = scheduler.build_plan(start_time)
-            for warning in scheduler.detect_conflicts(plan):
-                st.warning(warning)
+            conflict_warnings = scheduler.detect_conflicts(plan)
+            if conflict_warnings:
+                st.warning(
+                    "Please review these scheduling warnings before following the plan:\n\n"
+                    + "\n".join(f"- {warning}" for warning in conflict_warnings)
+                )
             scheduled = [item for item in plan if item[2] is not None]
             skipped = [item for item in plan if item[2] is None]
             st.write(f"Plan for {owner.name}'s pets:")
             if scheduled:
+                if not conflict_warnings:
+                    st.success("Schedule generated with no overlapping tasks.")
                 for pet, task, start, end, reason in scheduled:
                     assert start is not None and end is not None
                     end_label = end.strftime("%H:%M")

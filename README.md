@@ -1,16 +1,21 @@
-f# PawPal+ (Module 2 Project)
+# PawPal+ (Module 2 Project)
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+**PawPal+** is a Streamlit app that helps pet owners plan care tasks across
+multiple pets.
 
-## Scenario
+## Features
 
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
-
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
-
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
+- **Multi-pet task management:** Add pets and create, edit, complete, reopen,
+  or remove their care tasks.
+- **Daily planning:** Schedule due, incomplete tasks by priority and preferred
+  category within the available time, with an explanation for each choice.
+- **Sorting by time:** View tasks from shortest to longest duration; this does
+  not change the daily plan's priority-first order.
+- **Filtering:** Narrow the task overview by pet name and completion status.
+- **Conflict warnings:** Check supplied intervals for overlaps and invalid or
+  incomparable times, and show scheduler warnings in the app.
+- **Daily and weekly recurrence:** Completing a recurring task creates its
+  next occurrence, due one or seven days after completion.
 
 ## Implementation summary
 
@@ -23,7 +28,11 @@ tasks within the owner's available time and explain its choices.
 The terminal demo and Streamlit app both use this backend. In the app, add
 pets, select a pet to add or edit its tasks, and generate a shared daily plan.
 
-## Initial class design
+## Final UML design
+
+The [final Mermaid source](diagrams/uml_final.mmd) describes the implemented
+multi-pet backend. The [initial draft](diagrams/uml_draft.mmd) is also
+available for comparison.
 
 ```mermaid
 classDiagram
@@ -31,31 +40,42 @@ classDiagram
         +str name
         +int available_minutes
         +str preferred_category
+        +list~Pet~ pets
+        +add_pet(pet)
+        +get_all_tasks() list
     }
     class Pet {
         +str name
         +str species
-        +Owner owner
+        +list~Task~ tasks
+        +add_task(task)
+        +remove_task(task)
     }
-    class CareTask {
-        +str title
-        +str category
+    class Task {
+        +str description
         +int duration_minutes
+        +str frequency
+        +bool completed
         +str priority
+        +str category
+        +date due_date
+        -Pet _pet
+        -Task _next
+        +mark_complete()
+        +mark_incomplete()
     }
-    class DailyPlanner {
-        +Pet pet
-        +list~CareTask~ tasks
-        +build_plan(start_time) list~tuple~
+    class Scheduler {
+        +Owner owner
+        +build_plan(start_time) list
+        +sort_by_time() list
+        +filter_tasks(completed, pet_name) list
+        +detect_conflicts(plan) list
     }
-    Pet "0..*" --> "1" Owner : has owner
-    DailyPlanner --> "1" Pet : plans for
-    DailyPlanner --> "0..*" CareTask : schedules
+    Owner "0..*" --> "0..*" Pet : pets
+    Pet "0..1" -- "0..*" Task : tasks / _pet
+    Scheduler "0..*" --> "1" Owner : owner
+    Task --> "0..1" Task : _next occurrence
 ```
-
-This initial draft describes the earlier single-pet planner in `pawpal.py`;
-the current multi-pet backend reverses the owner-pet relationship and is
-described below.
 
 ## Planning rules
 
@@ -82,7 +102,9 @@ start/end times and a reason; tasks that do not fit have `None` for both times.
 
 The Streamlit app stores the owner and its pets and tasks in session state.
 Tasks can be marked complete when edited; completed tasks are excluded from
-plans. The due date is visible and editable for each task.
+plans. The due date is visible and editable for each task. The task overview
+filters by pet name and completion status and displays results by duration;
+these display filters do not change the daily plan.
 
 ## Smarter Scheduling
 
@@ -95,8 +117,9 @@ plans. The due date is visible and editable for each task.
 - **Conflict detection — `Scheduler.detect_conflicts()`:** Returns warnings
   for overlapping intervals across the same or different pets, and for
   invalid or incomparable intervals. Adjacent intervals are not conflicts and
-  unscheduled entries are ignored. Generated plans are consecutive, so the
-  method is also useful for checking supplied intervals.
+  unscheduled entries are ignored. The app displays warnings above the plan
+  for the owner to review. Generated plans are consecutive, so the method is
+  also useful for checking supplied intervals.
 - **Recurring tasks — `Task.mark_complete()` and `Task.mark_incomplete()`:**
   Completing a daily or weekly task creates an incomplete occurrence due one
   or seven days after completion. Frequency matching is case-insensitive; other
@@ -110,7 +133,31 @@ veterinary advice for time-sensitive care.
 
 Run `python main.py` for a terminal demonstration of the multi-pet scheduler.
 
-## Sample Output
+## Demo Walkthrough
+
+After completing setup, start the app with `streamlit run app.py`:
+
+1. Enter your name, available minutes, preferred category, and a start time
+   under **Owner and planning preferences**.
+2. Under **Pets**, enter a pet's name and species and select **Add pet**.
+3. Under **Care tasks**, select the pet and add a task with its category,
+   duration, frequency, due date, and priority. Select an existing task to
+   edit or remove it, or mark it complete and save the change.
+4. Use **Task overview** to filter by pet name or completion status. Tasks
+   appear shortest-duration first; the filters do not affect the daily plan.
+5. Select **Generate schedule** under **Daily plan**. The app shows suggested
+   times and reasons for scheduled tasks, plus tasks that did not fit. It
+   displays any scheduler warnings above the plan.
+
+Daily and weekly tasks create a new occurrence when completed. The next
+occurrence is excluded from a plan until it is due. Generated plans place
+tasks consecutively, so they do not normally overlap; conflict detection also
+supports checking separately supplied intervals. Task times are durations,
+not fixed appointments, and data lasts only for the current Streamlit session.
+
+For a terminal demonstration, run `python main.py`. Its sample output below
+includes a deliberately overlapping pair of intervals to demonstrate a
+conflict warning:
 
 ```text
 Tasks sorted by duration (including completed tasks)
@@ -154,29 +201,19 @@ interactions. A successful run produced:
 platform darwin -- Python 3.14.3, pytest-9.2.0, pluggy-1.7.0
 rootdir: /Users/imanimusembi/ai110-module2show-pawpal-starter
 plugins: anyio-4.16.0
-collected 48 items
+collected 50 items
 
-test_app.py ......                                                       [ 12%]
-test_pawpal.py ..............                                            [ 41%]
-test_pawpal_system.py .......................                            [ 89%]
+test_app.py ........                                                     [ 16%]
+test_pawpal.py ..............                                            [ 44%]
+test_pawpal_system.py .......................                            [ 90%]
 tests/test_pawpal.py .....                                               [100%]
 
-============================== 48 passed in 1.13s ==============================
+============================== 50 passed in 1.59s ==============================
 ```
 
 **Confidence level: ★★★★☆ (4/5).** The tests exercise core behaviors and
 important edge cases, but cannot prove the system is free of bugs. Session
 data is not persistent, and fixed-time care is not automatically scheduled.
-
-## What you will build
-
-Your final app should:
-
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
 
 ## Getting started
 
@@ -188,12 +225,4 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Suggested workflow
-
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
+Start the app with `streamlit run app.py`.

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
@@ -117,8 +117,63 @@ def test_schedule_displays_conflict_warning():
     app = AppTest.from_file("app.py", default_timeout=30).run()
     add_pet(app, "Mochi", "dog")
     add_task(app, "Walk")
-    with patch.object(Scheduler, "detect_conflicts", return_value=["Schedule conflict: example."]):
+    add_pet(app, "Luna", "cat")
+    element(app.selectbox, "Pet for this task").select(1).run()
+    add_task(app, "Feed", category="feeding")
+    first, second = app.session_state.owner.pets
+    start = datetime(2026, 1, 1, 9)
+    overlapping_plan = [
+        (first, first.tasks[0], start, start + timedelta(minutes=20), ""),
+        (second, second.tasks[0], start, start + timedelta(minutes=20), ""),
+    ]
+    with patch.object(Scheduler, "build_plan", return_value=overlapping_plan):
         element(app.button, "Generate schedule").click().run()
-    assert any("Schedule conflict: example." in item.value for item in app.warning)
+    assert any(
+        "Schedule conflict: Mochi: Walk overlaps Luna: Feed." in item.value
+        and "Please review" in item.value
+        for item in app.warning
+    )
     assert any("Mochi: Walk" in item.value for item in app.markdown)
+    assert any("Luna: Feed" in item.value for item in app.markdown)
+    assert not app.success
+    assert not app.exception
+
+
+def test_task_overview_sorts_and_filters_without_changing_schedule():
+    app = AppTest.from_file("app.py", default_timeout=30).run()
+    add_pet(app, "Mochi", "dog")
+    add_task(app, "Walk", duration=30)
+    add_task(app, "Feed", duration=10, category="feeding")
+    add_pet(app, "Luna", "cat")
+    element(app.selectbox, "Pet for this task").select(1).run()
+    add_task(app, "Play", duration=20, category="enrichment")
+    element(app.checkbox, "Completed").check()
+    element(app.button, "Save changes").click().run()
+
+    overview = app.table[-1].value
+    assert overview["Task"].tolist() == ["Feed", "Play", "Play", "Walk"]
+    assert overview["Minutes"].tolist() == [10, 20, 20, 30]
+    element(app.selectbox, "Filter by pet name").select(2)
+    element(app.selectbox, "Filter by completion").select("Completed").run()
+    overview = app.table[-1].value
+    assert overview["Task"].tolist() == ["Play"]
+    assert overview["Status"].tolist() == ["Completed"]
+
+    element(app.button, "Generate schedule").click().run()
+    assert any("Mochi: Walk" in item.value for item in app.markdown)
+    assert any("no overlapping tasks" in item.value for item in app.success)
+    assert not app.exception
+
+
+def test_overview_empty_filter_and_pet_named_all_pets():
+    app = AppTest.from_file("app.py", default_timeout=30).run()
+    add_pet(app, "All pets", "cat")
+    add_task(app, "Play")
+    add_pet(app, "Mochi", "dog")
+    element(app.selectbox, "Pet for this task").select(1).run()
+    add_task(app, "Walk")
+    element(app.selectbox, "Filter by pet name").select(1).run()
+    assert app.table[-1].value["Task"].tolist() == ["Play"]
+    element(app.selectbox, "Filter by completion").select("Completed").run()
+    assert any("No tasks match these filters" in item.value for item in app.info)
     assert not app.exception
